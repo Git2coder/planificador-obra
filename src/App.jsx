@@ -192,7 +192,21 @@ export default function App() {
 
   muros.forEach(m => {
     const superficieMuro = m.largo * m.alto;
-    const supAberturas = m.aberturas.reduce((acc,a)=> acc + a.ancho*a.alto,0);
+    const supAberturas = (m.aberturas || []).reduce((acc, a) => {
+
+      // 🔹 si NO tiene tipo → asumir rectangular (compatibilidad)
+      if (!a.tipo || a.tipo === "rectangular") {
+        return acc + (a.ancho * a.alto);
+      }
+
+      if (a.tipo === "circular") {
+        const radio = a.diametro / 2;
+        return acc + Math.PI * radio * radio;
+      }
+
+      return acc;
+
+    }, 0);
     const supNeta = Math.max(superficieMuro - supAberturas,0);
 
     const base = MUROS[m.tipo].opciones[m.espesor];
@@ -255,7 +269,20 @@ export default function App() {
   // ================== CALCULO POR MUROS ==================
   const resultadosPorMuro = muros.map(m => {
     const superficieMuro = m.largo * m.alto;
-    const supAberturas = m.aberturas.reduce((acc,a)=> acc + a.ancho*a.alto,0);
+    const supAberturas = (m.aberturas || []).reduce((acc, a) => {
+
+  if (!a.tipo || a.tipo === "rectangular") {
+    return acc + (a.ancho * a.alto);
+  }
+
+  if (a.tipo === "circular") {
+    const radio = a.diametro / 2;
+    return acc + Math.PI * radio * radio;
+  }
+
+  return acc;
+
+}, 0);
     const supNeta = Math.max(superficieMuro - supAberturas,0);
 
     const base = MUROS[m.tipo].opciones[m.espesor];
@@ -905,18 +932,84 @@ function MuroCard({ muro, onChange, onDelete }){
       <div className="mb-2">
         <h4 className="text-sm mb-1">🪟 Aberturas</h4>
         {muro.aberturas.map((a,i)=> (
-          <div key={i} className="flex gap-1 mb-1">
-            <input type="number" value={a.ancho} onChange={(e)=>{
-              const copy=[...muro.aberturas]; copy[i].ancho=Number(e.target.value);
-              onChange({...muro,aberturas:copy});
-            }} className="bg-gray-800 p-1 rounded" placeholder="Ancho" />
-            <input type="number" value={a.alto} onChange={(e)=>{
-              const copy=[...muro.aberturas]; copy[i].alto=Number(e.target.value);
-              onChange({...muro,aberturas:copy});
-            }} className="bg-gray-800 p-1 rounded" placeholder="Alto" />
+          <div key={i} className="flex gap-1 mb-1 items-center">
+
+            {/* 🔹 TIPO */}
+            <select
+              value={a.tipo || "rectangular"}
+              onChange={(e)=>{
+                const copy=[...muro.aberturas];
+
+                const tipo = e.target.value;
+
+                copy[i] =
+                  tipo === "circular"
+                    ? { tipo, diametro: 1 }
+                    : { tipo, ancho: 1, alto: 1 };
+
+                onChange({...muro, aberturas: copy});
+              }}
+              className="bg-gray-800 p-1 rounded text-xs"
+            >
+              <option value="rectangular">⬛ Rect</option>
+              <option value="circular">⚪ Circular</option>
+            </select>
+
+            {/* 🔹 INPUTS DINÁMICOS */}
+            {(!a.tipo || a.tipo === "rectangular") ? (
+              <>
+                <input
+                  type="number"
+                  value={a.ancho}
+                  onChange={(e)=>{
+                    const copy=[...muro.aberturas];
+                    copy[i].ancho=Number(e.target.value);
+                    onChange({...muro,aberturas:copy});
+                  }}
+                  className="bg-gray-800 p-1 rounded"
+                  placeholder="Ancho"
+                />
+
+                <input
+                  type="number"
+                  value={a.alto}
+                  onChange={(e)=>{
+                    const copy=[...muro.aberturas];
+                    copy[i].alto=Number(e.target.value);
+                    onChange({...muro,aberturas:copy});
+                  }}
+                  className="bg-gray-800 p-1 rounded"
+                  placeholder="Alto"
+                />
+              </>
+            ) : (
+              <input
+                type="number"
+                value={a.diametro}
+                onChange={(e)=>{
+                  const copy=[...muro.aberturas];
+                  copy[i].diametro=Number(e.target.value);
+                  onChange({...muro,aberturas:copy});
+                }}
+                className="bg-gray-800 p-1 rounded"
+                placeholder="Diámetro"
+              />
+            )}
+
           </div>
         ))}
-        <button onClick={()=>onChange({...muro,aberturas:[...muro.aberturas,{ancho:1,alto:1}]})} className="text-xs bg-yellow-600 px-2 py-1 rounded">
+        <button
+          onClick={() =>
+            onChange({
+              ...muro,
+              aberturas: [
+                ...muro.aberturas,
+                { tipo: "rectangular", ancho: 1, alto: 1 }
+              ]
+            })
+          }
+          className="text-xs bg-yellow-600 px-2 py-1 rounded"
+        >
           + agregar
         </button>
       </div>
