@@ -190,6 +190,12 @@ export default function App() {
   let arenaEstructura = 0;
   let piedraEstructura = 0;
 
+  const revoquesTotales = {
+    hidrofugo: { cemento: 0, arena: 0, cal: 0 },
+    grueso: { cemento: 0, arena: 0, cal: 0 },
+    fino: { cemento: 0, arena: 0, cal: 0 }
+  };
+
   muros.forEach(m => {
     const superficieMuro = m.largo * m.alto;
     const supAberturas = (m.aberturas || []).reduce((acc, a) => {
@@ -210,6 +216,7 @@ export default function App() {
     const supNeta = Math.max(superficieMuro - supAberturas,0);
 
     const base = MUROS[m.tipo].opciones[m.espesor];
+    const espesorMuro = m.espesor / 100; // si está en cm
     const mortero = base[m.tipoMortero];
     
     // 🔹 MAMPOSTERÍA
@@ -223,12 +230,29 @@ export default function App() {
       if (config.activo) {
         const base = REVOQUES_BASE[key];
         const factor = config.espesor / base.espesor;
+        const espesorMuro = parseFloat(m.espesor) / 100;
+        let superficie = 0;
 
-        const superficie = supNeta * config.caras;
+if (config.caras === 1) {
+  superficie = supNeta;
+}
 
-        calRevoque += superficie * ((base.cal || 0) * factor);
-        cementoRevoque += superficie * (base.cemento * factor);
-        arenaRevoque += superficie * (base.arena * factor);
+if (config.caras === 2) {
+  const perimetroMuro = 2 * (m.largo + m.alto);
+
+  const exterior = supNeta;
+
+  const interior = Math.max(
+    supNeta - (perimetroMuro * espesorMuro),
+    0
+  );
+
+  superficie = exterior + interior;
+}
+
+        revoquesTotales[key].cemento += superficie * (base.cemento * factor);
+        revoquesTotales[key].arena += superficie * (base.arena * factor);
+        revoquesTotales[key].cal += superficie * ((base.cal || 0) * factor);
       }
     });
 
@@ -294,19 +318,50 @@ export default function App() {
     let arena = supNeta * (mortero.arena || 0);
 
     // 🔹 REVOQUES
-    let calRev = 0;
-    let cementoRev = 0;
-    let arenaRev = 0;
+    const revoquesMuro = {
+      hidrofugo: {},
+      grueso: {},
+      fino: {}
+    };
 
     Object.entries(m.revoques).forEach(([key, config]) => {
       if (config.activo) {
-        const base = REVOQUES_BASE[key];
-        const factor = config.espesor / base.espesor;
-        const superficie = supNeta * config.caras;
+        const baseRevoque = REVOQUES_BASE[key];
+const factor = config.espesor / baseRevoque.espesor;
+const espesorMuro = parseFloat(m.espesor) / 100;
 
-        calRev += superficie * ((base.cal || 0) * factor);
-        cementoRev += superficie * (base.cemento * factor);
-        arenaRev += superficie * (base.arena * factor);
+// ⚠️ IMPORTANTE: cambiar estructura inicial si aún no existe
+if (!revoquesMuro[key].exterior) {
+  revoquesMuro[key] = {
+    exterior: { superficie: 0, cemento: 0, arena: 0, cal: 0 },
+    interior: { superficie: 0, cemento: 0, arena: 0, cal: 0 }
+  };
+}
+
+const perimetroMuro = 2 * (m.largo + m.alto);
+
+const exterior = supNeta;
+
+const interior = Math.max(
+  supNeta - (perimetroMuro * espesorMuro),
+  0
+);
+
+// 🔹 EXTERIOR
+if (config.caras >= 1) {
+  revoquesMuro[key].exterior.superficie += exterior;
+  revoquesMuro[key].exterior.cemento += exterior * (baseRevoque.cemento * factor);
+  revoquesMuro[key].exterior.arena += exterior * (baseRevoque.arena * factor);
+  revoquesMuro[key].exterior.cal += exterior * ((baseRevoque.cal || 0) * factor);
+}
+
+// 🔹 INTERIOR
+if (config.caras === 2) {
+  revoquesMuro[key].interior.superficie += interior;
+  revoquesMuro[key].interior.cemento += interior * (baseRevoque.cemento * factor);
+  revoquesMuro[key].interior.arena += interior * (baseRevoque.arena * factor);
+  revoquesMuro[key].interior.cal += interior * ((baseRevoque.cal || 0) * factor);
+}
       }
     });
 
@@ -316,24 +371,33 @@ export default function App() {
 
       ladrillos,
 
-      cemento: cemento + cementoRev,
-      arena: arena + arenaRev,
-      cal: cal + calRev,
+      // 🔹 SOLO MAMPOSTERÍA
+      muro: {
+        cemento,
+        arena,
+        cal
+      },
 
-      // opcional (para debug o modo avanzado)
-      detalle: {
-        muro: { cemento, arena, cal },
-        revoque: { cemento: cementoRev, arena: arenaRev, cal: calRev }
-      }
+      // 🔥 REVOQUES SEPARADOS
+      revoques: revoquesMuro
     };
   });
 
   // ================== TOTALES ==================
   const totalLadrillos = ladrillosMuros;
 
-  const totalCemento = cementoMuros + cementoRevoque + cementoEstructura;
-  const totalArena = arenaMuros + arenaRevoque + arenaEstructura;
-  const totalCal = calMuros + calRevoque + calEstructura;
+  const totalRevoqueCemento = Object.values(revoquesTotales)
+    .reduce((acc, r) => acc + r.cemento, 0);
+
+  const totalRevoqueArena = Object.values(revoquesTotales)
+    .reduce((acc, r) => acc + r.arena, 0);
+
+  const totalRevoqueCal = Object.values(revoquesTotales)
+    .reduce((acc, r) => acc + r.cal, 0);
+
+  const totalCemento = cementoMuros + totalRevoqueCemento + cementoEstructura;
+  const totalArena = arenaMuros + totalRevoqueArena + arenaEstructura;
+  const totalCal = calMuros + totalRevoqueCal + calEstructura;
   const totalPiedra = piedraEstructura;
 
   const bolsasCemento = Math.ceil(totalCemento / 25);
@@ -343,7 +407,18 @@ export default function App() {
 
   const superficieTotal = muros.reduce((acc, m) => {
     const superficieMuro = m.largo * m.alto;
-    const supAberturas = m.aberturas.reduce((a,b)=> a + b.ancho*b.alto,0);
+    const supAberturas = (m.aberturas || []).reduce((acc, a) => {
+      if (!a.tipo || a.tipo === "rectangular") {
+        return acc + (a.ancho * a.alto);
+      }
+
+      if (a.tipo === "circular") {
+        const radio = a.diametro / 2;
+        return acc + Math.PI * radio * radio;
+      }
+
+      return acc;
+    }, 0);
     return acc + Math.max(superficieMuro - supAberturas,0);
   }, 0);
 
@@ -469,36 +544,101 @@ export default function App() {
             </div>
           </Section>
 
-          <Section title="🪨 Revoques">
+          <Section title="🪨 Revoques (detallado por capa)">
+
             <div className="grid md:grid-cols-3 gap-4">
-              <Card title="Cemento" value={`${cementoRevoque.toFixed(1)} kg`} />
-              <Card title="Arena" value={`${arenaRevoque.toFixed(2)} m³`} />
-              <Card title="Cal" value={`${calRevoque.toFixed(1)} kg`} />
-            </div>
-          </Section>
 
-          <Section title="📊 Detalle por Muro">
-            <div className="grid md:grid-cols-2 gap-4">
-              {resultadosPorMuro.map((r, i) => (
-                <div key={i} className="bg-gray-800 p-4 rounded-xl">
+              {Object.entries(revoquesTotales).map(([tipo, data]) => (
+                <div key={tipo} className="bg-gray-800 p-4 rounded-xl">
 
-                  <h3 className="font-bold mb-2">{r.nombre}</h3>
+                  <h3 className="font-bold mb-2 capitalize">
+                    {tipo}
+                  </h3>
 
-                  <div className="text-xs mb-2">
-                    Superficie: {r.superficie.toFixed(2)} m²
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>🧱 Ladrillos: {Math.ceil(r.ladrillos)}</div>
-                    <div>🧪 Cemento: {r.cemento.toFixed(1)} kg</div>
-                    <div>🏖 Arena: {r.arena.toFixed(2)} m³</div>
-                    <div>🪶 Cal: {r.cal.toFixed(1)} kg</div>
+                  <div className="text-xs space-y-1">
+                    <div>🧪 Cemento: {data.cemento.toFixed(1)} kg</div>
+                    <div>🏖 Arena: {data.arena.toFixed(2)} m³</div>
+                    <div>🪶 Cal: {data.cal.toFixed(1)} kg</div>
                   </div>
 
                 </div>
               ))}
+
             </div>
+
           </Section>
+
+          <Section title="📊 Detalle por Muro">
+  <div className="grid md:grid-cols-2 gap-4">
+
+    {resultadosPorMuro.map((r, i) => (
+      <div key={i} className="bg-gray-800 p-4 rounded-xl">
+
+        <h3 className="font-bold mb-2">{r.nombre}</h3>
+
+        <div className="text-xs mb-2">
+          Superficie: {r.superficie.toFixed(2)} m²
+        </div>
+
+        {/* 🔹 MAMPOSTERÍA */}
+        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+          <div>🧱 Ladrillos: {Math.ceil(r.ladrillos)}</div>
+          <div>🧪 Cemento: {r.muro.cemento.toFixed(1)} kg</div>
+          <div>🏖 Arena: {r.muro.arena.toFixed(2)} m³</div>
+          <div>🪶 Cal: {r.muro.cal.toFixed(1)} kg</div>
+        </div>
+
+        {/* 🔥 REVOQUES POR CAPA */}
+<div className="border-t border-gray-600 pt-2 space-y-2">
+
+  {Object.entries(r.revoques).map(([tipo, data]) => {
+
+    if (!data.exterior && !data.interior) return null;
+
+    return (
+      <div key={tipo} className="text-xs">
+
+        <div className="font-semibold capitalize text-yellow-400">
+          {tipo}
+        </div>
+
+        {/* 🌍 EXTERIOR */}
+        {data.exterior?.superficie > 0 && (
+          <div className="ml-2">
+            <div className="text-gray-400">Exterior</div>
+            <div className="grid grid-cols-2 gap-1">
+              <div>🧱 {data.exterior.superficie.toFixed(2)} m²</div>
+              <div>🧪 {data.exterior.cemento.toFixed(1)} kg</div>
+              <div>🏖 {data.exterior.arena.toFixed(2)} m³</div>
+              <div>🪶 {data.exterior.cal.toFixed(1)} kg</div>
+            </div>
+          </div>
+        )}
+
+        {/* 🏠 INTERIOR */}
+        {data.interior?.superficie > 0 && (
+          <div className="ml-2 mt-1">
+            <div className="text-gray-400">Interior</div>
+            <div className="grid grid-cols-2 gap-1">
+              <div>🧱 {data.interior.superficie.toFixed(2)} m²</div>
+              <div>🧪 {data.interior.cemento.toFixed(1)} kg</div>
+              <div>🏖 {data.interior.arena.toFixed(2)} m³</div>
+              <div>🪶 {data.interior.cal.toFixed(1)} kg</div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  })}
+
+</div>
+
+      </div>
+    ))}
+
+  </div>
+</Section>
         </>
       )}
 
