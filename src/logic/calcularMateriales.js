@@ -20,13 +20,13 @@ import { MUROS, REVOQUES_BASE, LOSA, CONTRAPISO, CARPETA } from "../data/materia
   }
 
   export function calcularMateriales({
-    muros,
-    losa,
-    contrapiso,
-    carpeta,
-    tipoContrapiso,
+    muros = [],
+    losa = { largo: 0, ancho: 0, espesor: 0 },
+    contrapiso = { largo: 0, ancho: 0, espesor: 0 },
+    carpeta = { largo: 0, ancho: 0, espesor: 0 },
+    tipoContrapiso = "conCal",
     modoCalculo,
-    precios
+    precios = { cemento: 0, arena: 0, cal: 0, piedra: 0 }
   }) {
 
   // ================== INICIO ==================
@@ -141,7 +141,7 @@ import { MUROS, REVOQUES_BASE, LOSA, CONTRAPISO, CARPETA } from "../data/materia
     piedraEstructura = piedraLosa + cascoteContrapiso;
     const calEstructura = calContrapiso;
 
-   // ================== CALCULO POR MUROS ==================
+   // ================== CALCULO POR MURO ==================
       const resultadosPorMuro = muros.map((m, i) => {
         const supNeta = calcularSupNeta(m);
     

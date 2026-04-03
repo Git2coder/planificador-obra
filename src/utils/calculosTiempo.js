@@ -6,28 +6,40 @@ const SUELDOS = {
   ayudante: 50000
 };
 
-export function calcularTiempoObra(data) {
+export function calcularTiempoObra(data = {}) {
   const {
-    superficieMuros,
-    superficieRevoques,
-    supLosa,
-    supContrapiso,
-    supCarpeta,
-    tecnologia,
-    configTareas // ✅ ESTE ES EL NUEVO CORE
+    superficieMuros = 0,
+    superficieRevoques = 0,
+    supLosa = 0,
+    supContrapiso = 0,
+    supCarpeta = 0,
+    tecnologia = {}, // 🔹 default vacío
+    configTareas = {} // 🔹 default vacío
   } = data;
+
+  // valores seguros por defecto
+  const tec = {
+    mamposteria: tecnologia.mamposteria || "manual",
+    revoque: tecnologia.revoque || "manual",
+    losa: tecnologia.losa || "manual",
+    contrapiso: tecnologia.contrapiso || "manual",
+    carpeta: tecnologia.carpeta || "manual"
+  };
+
+  const tareas = {
+    mamposteria: configTareas.mamposteria || { personas: 1, productividad: 1 },
+    revoque: configTareas.revoque || { personas: 1, productividad: 1 },
+    losa: configTareas.losa || { personas: 1, productividad: 1 },
+    contrapiso: configTareas.contrapiso || { personas: 1, productividad: 1 },
+    carpeta: configTareas.carpeta || { personas: 1, productividad: 1 }
+  };
 
   const sueldoPromedio = SUELDOS.oficial + SUELDOS.ayudante;
 
   // ================== HELPERS ==================
-
   function calcDias(superficie, rendimientoBase, config) {
-    const produccion =
-      rendimientoBase *
-      config.productividad *
-      config.personas;
-
-    return superficie / produccion;
+    const produccion = rendimientoBase * config.productividad * config.personas;
+    return superficie / (produccion || 1); // evita division por cero
   }
 
   function calcCosto(dias, config) {
@@ -35,39 +47,37 @@ export function calcularTiempoObra(data) {
   }
 
   // ================== TIEMPOS ==================
-
   const diasMamposteria = calcDias(
     superficieMuros,
-    RENDIMIENTOS.mamposteria[tecnologia.mamposteria],
-    configTareas.mamposteria
+    RENDIMIENTOS.mamposteria[tec.mamposteria],
+    tareas.mamposteria
   );
 
   const diasRevoque = calcDias(
     superficieRevoques,
-    RENDIMIENTOS.revoque[tecnologia.revoque],
-    configTareas.revoque
+    RENDIMIENTOS.revoque[tec.revoque],
+    tareas.revoque
   );
 
   const diasLosa = calcDias(
     supLosa,
-    RENDIMIENTOS.losa[tecnologia.losa],
-    configTareas.losa
+    RENDIMIENTOS.losa[tec.losa],
+    tareas.losa
   );
 
   const diasContrapiso = calcDias(
     supContrapiso,
-    RENDIMIENTOS.contrapiso[tecnologia.contrapiso],
-    configTareas.contrapiso
+    RENDIMIENTOS.contrapiso[tec.contrapiso],
+    tareas.contrapiso
   );
 
   const diasCarpeta = calcDias(
     supCarpeta,
-    RENDIMIENTOS.carpeta[tecnologia.carpeta],
-    configTareas.carpeta
+    RENDIMIENTOS.carpeta[tec.carpeta],
+    tareas.carpeta
   );
 
   // ================== LÓGICA DE OBRA ==================
-
   const avanceParaRevoque = 0.6;
   const inicioRevoque = diasMamposteria * avanceParaRevoque;
 
@@ -79,12 +89,11 @@ export function calcularTiempoObra(data) {
     diasCarpeta;
 
   // ================== COSTOS ==================
-
-  const costoMamposteria = calcCosto(diasMamposteria, configTareas.mamposteria);
-  const costoRevoque = calcCosto(diasRevoque, configTareas.revoque);
-  const costoLosa = calcCosto(diasLosa, configTareas.losa);
-  const costoContrapiso = calcCosto(diasContrapiso, configTareas.contrapiso);
-  const costoCarpeta = calcCosto(diasCarpeta, configTareas.carpeta);
+  const costoMamposteria = calcCosto(diasMamposteria, tareas.mamposteria);
+  const costoRevoque = calcCosto(diasRevoque, tareas.revoque);
+  const costoLosa = calcCosto(diasLosa, tareas.losa);
+  const costoContrapiso = calcCosto(diasContrapiso, tareas.contrapiso);
+  const costoCarpeta = calcCosto(diasCarpeta, tareas.carpeta);
 
   const costoTotal =
     costoMamposteria +
@@ -94,14 +103,12 @@ export function calcularTiempoObra(data) {
     costoCarpeta;
 
   // ================== PERSONAS ==================
-
-  const totalPersonas = Object.values(configTareas).reduce(
+  const totalPersonas = Object.values(tareas).reduce(
     (acc, t) => acc + t.personas,
     0
   );
 
   // ================== RETURN ==================
-
   return {
     totalDias: Math.round(totalDias),
     personas: totalPersonas,
@@ -117,61 +124,61 @@ export function calcularTiempoObra(data) {
 
     rendimientos: {
       mamposteria: {
-        base: RENDIMIENTOS.mamposteria[tecnologia.mamposteria],
-        factor: configTareas.mamposteria.productividad,
-        personas: configTareas.mamposteria.personas,
+        base: RENDIMIENTOS.mamposteria[tec.mamposteria],
+        factor: tareas.mamposteria.productividad,
+        personas: tareas.mamposteria.personas,
         final:
-          RENDIMIENTOS.mamposteria[tecnologia.mamposteria] *
-          configTareas.mamposteria.productividad *
-          configTareas.mamposteria.personas
+          RENDIMIENTOS.mamposteria[tec.mamposteria] *
+          tareas.mamposteria.productividad *
+          tareas.mamposteria.personas
       },
       revoque: {
-        base: RENDIMIENTOS.revoque[tecnologia.revoque],
-        factor: configTareas.revoque.productividad,
-        personas: configTareas.revoque.personas,
+        base: RENDIMIENTOS.revoque[tec.revoque],
+        factor: tareas.revoque.productividad,
+        personas: tareas.revoque.personas,
         final:
-          RENDIMIENTOS.revoque[tecnologia.revoque] *
-          configTareas.revoque.productividad *
-          configTareas.revoque.personas
+          RENDIMIENTOS.revoque[tec.revoque] *
+          tareas.revoque.productividad *
+          tareas.revoque.personas
       },
       losa: {
-        base: RENDIMIENTOS.losa[tecnologia.losa],
-        factor: configTareas.losa.productividad,
-        personas: configTareas.losa.personas,
+        base: RENDIMIENTOS.losa[tec.losa],
+        factor: tareas.losa.productividad,
+        personas: tareas.losa.personas,
         final:
-          RENDIMIENTOS.losa[tecnologia.losa] *
-          configTareas.losa.productividad *
-          configTareas.losa.personas
+          RENDIMIENTOS.losa[tec.losa] *
+          tareas.losa.productividad *
+          tareas.losa.personas
       },
       contrapiso: {
-        base: RENDIMIENTOS.contrapiso[tecnologia.contrapiso],
-        factor: configTareas.contrapiso.productividad,
-        personas: configTareas.contrapiso.personas,
+        base: RENDIMIENTOS.contrapiso[tec.contrapiso],
+        factor: tareas.contrapiso.productividad,
+        personas: tareas.contrapiso.personas,
         final:
-          RENDIMIENTOS.contrapiso[tecnologia.contrapiso] *
-          configTareas.contrapiso.productividad *
-          configTareas.contrapiso.personas
+          RENDIMIENTOS.contrapiso[tec.contrapiso] *
+          tareas.contrapiso.productividad *
+          tareas.contrapiso.personas
       },
       carpeta: {
-        base: RENDIMIENTOS.carpeta[tecnologia.carpeta],
-        factor: configTareas.carpeta.productividad,
-        personas: configTareas.carpeta.personas,
+        base: RENDIMIENTOS.carpeta[tec.carpeta],
+        factor: tareas.carpeta.productividad,
+        personas: tareas.carpeta.personas,
         final:
-          RENDIMIENTOS.carpeta[tecnologia.carpeta] *
-          configTareas.carpeta.productividad *
-          configTareas.carpeta.personas
+          RENDIMIENTOS.carpeta[tec.carpeta] *
+          tareas.carpeta.productividad *
+          tareas.carpeta.personas
       }
     }
   };
 }
 
-export function generarEtapasAutomaticas(desglose) {
+export function generarEtapasAutomaticas(desglose = {}) {
   const {
-    mamposteria,
-    revoques,
-    losa,
-    contrapiso,
-    carpeta
+    mamposteria = 0,
+    revoques = 0,
+    losa = 0,
+    contrapiso = 0,
+    carpeta = 0
   } = desglose;
 
   const avanceParaRevoque = 0.6;
